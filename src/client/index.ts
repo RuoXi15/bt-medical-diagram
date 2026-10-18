@@ -481,35 +481,66 @@ function SettingsComponent({ ctx }: { ctx: any }) {
 // ---------------------------------------------------------------- 注册
 
 export function apply(ctx: any) {
+  const log = (...args: any[]) => console.info('[bt-medical-diagram]', ...args)
+  const fail = (...args: any[]) => console.error('[bt-medical-diagram]', ...args)
   const wrap = (Component: any) => () => React.createElement(Component, { ctx })
   const TAB_KIND = 'bt-medical-diagram'
 
-  // 1) 插件配置卡片：设置 → 插件 → bt-medical-diagram → 配置
+  log('apply() start', {
+    hasSlots: !!ctx.slots,
+    slotKeys: ctx.slots ? Object.keys(ctx.slots) : null,
+    hasGet: typeof ctx.get === 'function',
+  })
+
+  // A) 插件自己的配置卡片（设置 → 插件 → bt-medical-diagram → 配置）
   ctx.effect(() => {
     try {
-      return ctx.slots.inject('plugins.bundle.config', () =>
+      const dispose = ctx.slots.inject('plugins.bundle.config', () =>
         ctx.slots.register(
           { name: 'plugins.bundle.config', key: 'bt-medical-diagram', inject: () => ({}) },
           wrap(SettingsComponent),
         ),
       )
+      log('registered plugins.bundle.config', typeof dispose)
+      return dispose
     } catch (error) {
-      console.error('[bt-medical-diagram] config card registration failed', error)
+      fail('plugins.bundle.config failed', error)
       return () => {}
     }
   }, 'bt-medical-diagram: config card')
 
-  // 2) 右侧栏标签页：工作台
+  // B) 设置页里的独立分区（更显眼，作为兜底入口）
+  ctx.effect(() => {
+    try {
+      const dispose = ctx.slots.inject('settings.section', () =>
+        ctx.slots.register(
+          {
+            name: 'settings.section',
+            id: 'bt-medical-diagram',
+            order: 12,
+            label: () => '医学图示',
+            inject: () => ({}),
+          },
+          wrap(WorkspaceComponent),
+        ),
+      )
+      log('registered settings.section', typeof dispose)
+      return dispose
+    } catch (error) {
+      fail('settings.section failed', error)
+      return () => {}
+    }
+  }, 'bt-medical-diagram: settings section')
+
+  // C) 右侧栏标签页
   ctx.effect(() => {
     const disposers: Array<() => void> = []
     try {
       const tabs = typeof ctx.get === 'function' ? ctx.get('sidebarRightTabs') : undefined
-      const disposeType = tabs?.register?.({
-        id: TAB_KIND,
-        kind: TAB_KIND,
-        title: () => '医学图示',
-      })
+      log('sidebarRightTabs =', !!tabs, tabs ? Object.keys(tabs) : null)
+      const disposeType = tabs?.register?.({ id: TAB_KIND, kind: TAB_KIND, title: () => '医学图示' })
       if (typeof disposeType === 'function') disposers.push(disposeType)
+      log('registered tab type', typeof disposeType)
 
       disposers.push(
         ctx.slots.inject('sidebar.right.pane.tab', () =>
@@ -521,8 +552,9 @@ export function apply(ctx: any) {
           ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TAB_KIND }, () => '医学图示'),
         ),
       )
+      log('registered right pane seats', disposers.length)
     } catch (error) {
-      console.error('[bt-medical-diagram] right pane tab registration failed', error)
+      fail('right pane tab failed', error)
     }
     return () => {
       for (const dispose of disposers.reverse()) {

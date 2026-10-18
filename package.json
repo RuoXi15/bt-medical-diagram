@@ -1,6 +1,6 @@
 {
   "name": "bt-medical-diagram",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "医学专业图示生成：把医学图示需求优化为专业 Prompt，并调用百通生图服务（DSH 插件版）",
   "type": "module",
   "main": "lib/index.js",
