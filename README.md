@@ -10,7 +10,7 @@
 | 能力面 | 入口 |
 |---|---|
 | 命令 | `/medical-diagram <需求>` 生成图示（别名 `/医学图示`） |
-| 命令 | `/medical-diagram.prompt <需求>` 仅优化 Prompt，不调用接口、不计费 |
+| 命令 | `/medical-diagram-prompt <需求>` 仅优化 Prompt，不调用接口、不计费 |
 | 工具 | `medical_diagram`（供模型调用） |
 | HTTP | `GET /bt-medical-diagram/health` 冒烟路由 |
 | HTTP | `GET / POST /bt-medical-diagram/config` 读取/更新配置 |
@@ -42,7 +42,7 @@ dsh web
 首次安装后必须重启 web（bundle 成员在启动时固定，不热更）。
 
 > 装完是**没有凭据**的，生图会如实报错。请到设置面板填写，或用 `BAITONG_APP_KEY` 等环境变量。
-> 零成本自检：`/medical-diagram.prompt 生成一张COPD流程图` —— 只优化 Prompt，不调接口。
+> 零成本自检：`/medical-diagram-prompt 生成一张COPD流程图` —— 只优化 Prompt，不调接口。
 
 ## 配置凭据
 

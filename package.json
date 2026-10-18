@@ -1,6 +1,6 @@
 {
   "name": "bt-medical-diagram",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "医学专业图示生成：把医学图示需求优化为专业 Prompt，并调用百通生图服务（DSH 插件版）",
   "type": "module",
   "main": "lib/index.js",
@@ -33,7 +33,6 @@
     "image-generation"
   ],
   "license": "MIT",
-"license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RuoXi15/bt-medical-diagram.git"
@@ -55,11 +54,15 @@
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*"
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-commands": "*",
+    "@deepseek-ai/dsh-tools": "*"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@deepseek-ai/dsh-commands": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.2.0-rc.2"
   }
 }

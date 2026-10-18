@@ -10,9 +10,11 @@
 import { BaitongImageClient, extractImage } from './baitong-client.js'
 import { ALLOWED_SIZES, buildMedicalPrompt, normalizeSize } from './prompt-builder.js'
 import { SettingsStore } from './settings.js'
+import { defineTool } from '@deepseek-ai/dsh-tools'
+import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 
 /** 使用 webServer 服务（HTTP 路由），必须声明注入。 */
-export const inject = ['webServer']
+export const inject = ['webServer', 'commands', 'tools']
 
 const ROUTE_PREFIX = '/bt-medical-diagram'
 
@@ -123,63 +125,105 @@ export function apply(ctx: any) {
   })
 
   ctx.effect(() => {
-    // ---- 命令 ----
-    ctx.command('medical-diagram <request>', '生成医学专业图示（药物/疾病机制、诊疗流程、解剖生理、医学对比、患者教育）')
-      .alias('医学图示')
-      .option('size', '-s  出图尺寸，可选值：' + ALLOWED_SIZES.join(' / '))
-      .option('timeout', '-t  单次请求超时秒数，默认 300')
-      .option('max-attempts', '-m  总尝试次数（含首次），默认 3')
-      .option('no-retry-on-timeout', '   读超时后不重试，避免重复生成与重复计费')
-      .action(async ({ options }: any, request: string) => {
-        const outcome = await generate(request, {
-          size: options?.size,
-          timeoutSeconds: options?.timeout ? Number(options.timeout) : undefined,
-          maxAttempts: options?.['max-attempts'] ? Number(options['max-attempts']) : undefined,
-          retryOnTimeout: options?.['no-retry-on-timeout'] ? false : undefined,
+    // ---- 命令（DSH 真 API：ctx.commands.register；命令名只允许 [a-z][a-z0-9_-]*）----
+    const parseArgs = (raw: string) => {
+      const tokens = String(raw ?? '').trim().split(/\s+/).filter(Boolean)
+      const rest: string[] = []
+      const flags: Record<string, string | boolean> = {}
+      for (let i = 0; i < tokens.length; i += 1) {
+        const token = tokens[i]
+        if (token === '--size' || token === '-s') flags.size = tokens[(i += 1)] ?? ''
+        else if (token === '--timeout' || token === '-t') flags.timeout = tokens[(i += 1)] ?? ''
+        else if (token === '--max-attempts' || token === '-m') flags['max-attempts'] = tokens[(i += 1)] ?? ''
+        else if (token === '--no-retry-on-timeout') flags['no-retry-on-timeout'] = true
+        else rest.push(token)
+      }
+      return {
+        request: rest.join(' '),
+        size: typeof flags.size === 'string' && flags.size ? flags.size : undefined,
+        timeoutSeconds: typeof flags.timeout === 'string' && flags.timeout ? Number(flags.timeout) : undefined,
+        maxAttempts: typeof flags['max-attempts'] === 'string' && flags['max-attempts'] ? Number(flags['max-attempts']) : undefined,
+        retryOnTimeout: flags['no-retry-on-timeout'] === true ? false : undefined,
+      }
+    }
+
+    ctx.commands.register({
+      definitionId: CommandDefinitionId('bt-medical-diagram'),
+      name: 'medical-diagram',
+      description: '生成医学专业图示（药物/疾病机制、诊疗流程、解剖生理、医学对比、患者教育）',
+      input: { hint: '<需求> [--size 1024x1024] [--timeout 300] [--max-attempts 3] [--no-retry-on-timeout]' },
+      handler: async (invocation: any) => {
+        const args = parseArgs(invocation?.rawInput ?? '')
+        if (!args.request) {
+          return { kind: 'error', text: '请提供医学图示需求，例如：/medical-diagram 生成一张司美格鲁肽降糖机制图' }
+        }
+        const outcome = await generate(args.request, {
+          size: args.size,
+          timeoutSeconds: args.timeoutSeconds,
+          maxAttempts: args.maxAttempts,
+          retryOnTimeout: args.retryOnTimeout,
         })
-        const lines = [
-          `图示类型：${outcome.illustrationType ?? '未知'}`,
-          outcome.message,
-        ]
+        const lines = [`图示类型：${outcome.illustrationType ?? '未知'}`, outcome.message]
         if (outcome.ok && outcome.imageUrl) lines.push(`图片链接：${outcome.imageUrl}`)
         if (outcome.optimizedPrompt) lines.push(`优化后 Prompt：${outcome.optimizedPrompt}`)
-        return lines.join('\n')
-      })
+        return { kind: 'success', text: lines.join('\n') }
+      },
+    })
 
-    // 仅优化 Prompt，不调用生图接口（不产生费用）
-    ctx.command('medical-diagram.prompt <request>', '仅生成医学图示 Prompt，不调用生图接口')
-      .action((_arg: any, request: string) => {
-        const built = buildMedicalPrompt(request)
-        return [`图示类型：${built.illustrationType}`, `Prompt：${built.optimizedPrompt}`].join('\n')
-      })
+    ctx.commands.register({
+      definitionId: CommandDefinitionId('bt-medical-diagram-prompt'),
+      name: 'medical-diagram-prompt',
+      description: '仅生成医学图示 Prompt，不调用生图接口、不产生费用',
+      input: { hint: '<需求>' },
+      handler: (invocation: any) => {
+        const args = parseArgs(invocation?.rawInput ?? '')
+        if (!args.request) return { kind: 'error', text: '请提供医学图示需求' }
+        const built = buildMedicalPrompt(args.request)
+        return {
+          kind: 'success',
+          text: [`图示类型：${built.illustrationType}`, `Prompt：${built.optimizedPrompt}`].join('\n'),
+        }
+      },
+    })
 
-    // 供模型调用的工具
-    ctx.tool?.register?.({
+    // ---- 工具（DSH 真 API：ctx.tools.register(defineTool(...))）----
+    ctx.tools.register(defineTool({
       name: 'medical_diagram',
       description:
         '生成医学专业图示：把医学图示需求优化为专业 Prompt 并调用百通生图服务。适用于药物作用机制、疾病机制、诊疗流程、解剖生理、医学对比与患者教育图。不替代医学事实核验。',
-      params: {
-        request: 'string，医学图示需求描述，如「生成一张司美格鲁肽降糖机制图」',
-        size: `string，可选尺寸：${ALLOWED_SIZES.join(' / ')}`,
+      parameters: {
+        request: { type: 'string', required: true, description: '医学图示需求描述，如「生成一张司美格鲁肽降糖机制图」' },
+        size: { type: 'string', description: `可选尺寸：${ALLOWED_SIZES.join(' / ')}` },
       },
-      run: async ({ request, size }: { request: string; size?: string }) => {
-        const outcome = await generate(request, { size })
-        return outcome.ok
-          ? {
-              ok: true,
-              message: outcome.message,
-              imageUrl: outcome.imageUrl,
-              illustrationType: outcome.illustrationType,
-              optimizedPrompt: outcome.optimizedPrompt,
-            }
-          : {
-              ok: false,
-              message: outcome.message,
-              illustrationType: outcome.illustrationType,
-              optimizedPrompt: outcome.optimizedPrompt,
-            }
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ok: { type: 'boolean', required: true },
+            message: { type: 'string', required: true },
+            imageUrl: { type: 'string' },
+            illustrationType: { type: 'string' },
+            optimizedPrompt: { type: 'string' },
+          },
+        },
+        render: (_args: any, value: any) => [
+          {
+            type: 'text',
+            text: value.ok
+              ? `医学图示已生成：${value.imageUrl ?? '（平台返回 Base64）'}`
+              : `医学图示生成失败：${value.message}`,
+          },
+        ],
       },
-    })
+      execute: async (args: { request: string; size?: string }) => {
+        const outcome = await generate(args.request, { size: args.size })
+        const payload = outcome.ok
+          ? { ok: true, message: outcome.message, imageUrl: outcome.imageUrl, illustrationType: outcome.illustrationType, optimizedPrompt: outcome.optimizedPrompt }
+          : { ok: false, message: outcome.message, illustrationType: outcome.illustrationType, optimizedPrompt: outcome.optimizedPrompt }
+        return JSON.parse(JSON.stringify(payload))
+      },
+    }))
 
     // ---- HTTP ----
     const disposeRoutes = ctx.webServer.register((router: any) => {

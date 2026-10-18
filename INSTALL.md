@@ -178,10 +178,10 @@ dsh web
 - [ ] 控制台无 `slot entry crashed`、无重复 React / `useState` null 报错
 - [ ] 设置面板可见，能保存
 - [ ] 工作区可见，能点「仅预览 Prompt」不报错
-- [ ] 命令 `/medical-diagram.prompt 生成一张COPD流程图` 有返回（不消耗积分）
+- [ ] 命令 `/medical-diagram-prompt 生成一张COPD流程图` 有返回（不消耗积分）
 - [ ] 填好凭据后 `/medical-diagram 生成一张测试机制图` 能出图
 
-**冒烟小技巧**：先跑 `/medical-diagram.prompt`——它只优化 Prompt 不调接口，能验证命令注册、Prompt 逻辑、参数传递是否正常，且**零成本**。
+**冒烟小技巧**：先跑 `/medical-diagram-prompt`——它只优化 Prompt 不调接口，能验证命令注册、Prompt 逻辑、参数传递是否正常，且**零成本**。
 
 ---
 

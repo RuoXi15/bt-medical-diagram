@@ -116,7 +116,7 @@ await check('inject 覆盖 ctx.* 服务调用', async () => {
   const builtins = new Set([
     'effect', 'on', 'off', 'emit', 'provide', 'inject', 'logger', 'command',
     'setInterval', 'setTimeout', 'clearInterval', 'clearTimeout', 'start', 'stop',
-    'model', 'name', 'config', 'tool',
+    'model', 'name', 'config', 'tool', 'commands', 'tools',
   ])
   const used = [...src.matchAll(/ctx\.([a-zA-Z]\w*)\s*\(/g)].map((m) => m[1])
   const missing = [...new Set(used)].filter((n) => !declared.has(n) && !builtins.has(n))
@@ -127,7 +127,7 @@ await check('注册均在 ctx.effect() 内', async () => {
   const src = await read('src/index.ts')
   const effectStart = src.indexOf('ctx.effect(')
   if (effectStart === -1) throw new Error('未找到 ctx.effect(')
-  for (const marker of ['ctx.command(', 'ctx.webServer.register(', 'ctx.tool?.register']) {
+  for (const marker of ['ctx.commands.register(', 'ctx.tools.register(', 'ctx.webServer.register(']) {
     if (src.indexOf(marker) < effectStart) throw new Error(`${marker} 未在 ctx.effect() 内`)
   }
 })

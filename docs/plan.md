@@ -7,7 +7,7 @@
 - [x] 插件名：`bt-medical-diagram`
 - [x] 一句话目标：把医学图示需求优化为专业 Prompt 并调用百通生图服务，交付可直接用于医学会议/培训/药企 PPT 的图示
 - [x] 能力面清单：
-  - 命令/工具：`/medical-diagram`、`/medical-diagram.prompt`、tool `medical_diagram`
+  - 命令/工具：`/medical-diagram`、`/medical-diagram-prompt`、tool `medical_diagram`
   - HTTP 接口：`/health`、`/config`、`/prompt`、`/generate`
   - 对外服务：`medicalDiagram`（其它插件可注入）
   - 设置面板：百通凭据与重试策略（凭据由用户手动输入）
@@ -63,7 +63,7 @@
 - [ ] `dsh web --dump-config | grep bt-medical-diagram` 能在组合树中看到
 - [ ] 启动日志无 `plugin tree failed to load`
 - [ ] 浏览器无 `slot entry crashed`
-- [ ] 零成本自检：`/medical-diagram.prompt 生成一张COPD流程图` 有返回
+- [ ] 零成本自检：`/medical-diagram-prompt 生成一张COPD流程图` 有返回
 - [ ] 设置面板可见可保存；工作区可生图
 
 ## 阶段 ⑥：发布
