@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 export const inject = ['slots']
 
-const API = '/bt-medical-diagram'
+const API = '/api/bt-medical-diagram'
 const SIZES = ['1024x1024', '1024x1536', '1536x1024', '1792x1024', '1024x1792']
 const CHANNELS = ['workbuddy', 'qwenwork']
 
@@ -322,166 +322,115 @@ function WorkspaceComponent({ ctx }: { ctx: any }) {
 // ---------------------------------------------------------------- 设置面板
 
 function SettingsComponent({ ctx }: { ctx: any }) {
-  const [form, setForm] = useState({
-    baseUrl: '',
-    appKey: '',
-    appSecret: '',
-    channel: 'workbuddy',
-    skillCode: 'BT_08DA7C1A',
-    timeoutSeconds: 300,
-    maxAttempts: 3,
-    retryOnTimeout: true,
-    defaultSize: '1024x1024',
-  })
-  const [secretTip, setSecretTip] = useState('')
-  const [status, setStatus] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [appKey, setAppKey] = React.useState('')
+  const [appSecret, setAppSecret] = React.useState('')
+  const [masked, setMasked] = React.useState('')
+  const [status, setStatus] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
 
-  useEffect(() => {
-    callApi<ConfigSnapshot>('/config')
-      .then((cfg) => {
-        setForm({
-          baseUrl: cfg.baseUrl ?? '',
-          appKey: cfg.appKey ?? '',
-          appSecret: '',
-          channel: cfg.channel ?? 'workbuddy',
-          skillCode: cfg.skillCode ?? 'BT_08DA7C1A',
-          timeoutSeconds: cfg.timeoutSeconds ?? 300,
-          maxAttempts: cfg.maxAttempts ?? 3,
-          retryOnTimeout: cfg.retryOnTimeout ?? true,
-          defaultSize: cfg.defaultSize ?? '1024x1024',
-        })
-        setSecretTip(cfg.hasAppSecret ? `已配置（${cfg.appSecretMasked}），留空则保持不变` : '尚未配置')
+  React.useEffect(() => {
+    let alive = true
+    fetch(`${API}/config`)
+      .then((res) => res.json())
+      .then((cfg: any) => {
+        if (!alive) return
+        setAppKey(cfg?.appKey ?? '')
+        setMasked(cfg?.appSecretMasked ?? '')
       })
-      .catch(() => setSecretTip('读取配置失败'))
+      .catch(() => {})
+    return () => { alive = false }
   }, [])
 
-  const save = useCallback(async () => {
+  const save = async () => {
     setSaving(true)
-    setStatus('保存中…')
+    setStatus('')
     try {
-      const payload: Record<string, unknown> = { ...form }
-      if (!form.appSecret) delete payload.appSecret // 留空表示不修改已保存的密钥
-      const res = await callApi<{ ok: boolean; changed: string[] }>('/config', payload)
-      setStatus(`已保存${res.changed?.length ? `（更新：${res.changed.join('、')}）` : '（无变更）'}`)
-      if (form.appSecret) setSecretTip('已更新')
-      setForm((f) => ({ ...f, appSecret: '' }))
+      const res = await fetch(`${API}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appKey, appSecret }),
+      })
+      const data = await res.json()
+      if (data?.ok) {
+        setStatus('已保存')
+        setMasked(data?.settings?.appSecretMasked ?? '')
+        setAppSecret('')
+      } else {
+        setStatus('保存失败')
+      }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
+      setStatus('保存失败：' + (error instanceof Error ? error.message : String(error)))
     } finally {
       setSaving(false)
     }
-  }, [form])
+  }
 
-  return (
-    <div style={{ ...card, fontFamily: 'system-ui, -apple-system, "Microsoft YaHei", sans-serif' }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: '#0f172a' }}>百通生图服务配置</h3>
-      <p style={{ margin: '0 0 18px', fontSize: 12, color: '#64748b' }}>
-        凭据仅保存在本机插件配置中，不会写入日志或随包分发。环境变量优先级更高。
-      </p>
+  const field = (label: string, node: any, hint?: string) =>
+    React.createElement(
+      'div',
+      { style: { marginBottom: 14 } },
+      React.createElement('div', { style: { fontSize: 12, color: '#334155', marginBottom: 6 } }, label),
+      node,
+      hint ? React.createElement('div', { style: { fontSize: 11, color: '#94a3b8', marginTop: 4 } }, hint) : null,
+    )
 
-      <div style={fieldWrap}>
-        <label style={labelStyle}>服务地址 Base URL</label>
-        <input
-          value={form.baseUrl}
-          onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
-          placeholder="https://your-host"
-          style={inputStyle}
-        />
-        <div style={hintStyle}>可填 {`{host}`}、{`{host}/api`} 或 {`{host}/baitong_ai/api`}，插件会自动归一化到 {`{host}/baitong_ai/api/skill/generateImage`}。</div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 220px', ...fieldWrap }}>
-          <label style={labelStyle}>AppKey</label>
-          <input value={form.appKey} onChange={(e) => setForm({ ...form, appKey: e.target.value })} style={inputStyle} />
-        </div>
-        <div style={{ flex: '1 1 220px', ...fieldWrap }}>
-          <label style={labelStyle}>AppSecret</label>
-          <input
-            type="password"
-            value={form.appSecret}
-            onChange={(e) => setForm({ ...form, appSecret: e.target.value })}
-            placeholder={secretTip}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 150px', ...fieldWrap }}>
-          <label style={labelStyle}>接入方 channel</label>
-          <select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} style={inputStyle}>
-            {CHANNELS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div style={{ flex: '1 1 150px', ...fieldWrap }}>
-          <label style={labelStyle}>技能编码 skillCode</label>
-          <input value={form.skillCode} onChange={(e) => setForm({ ...form, skillCode: e.target.value })} style={inputStyle} />
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 120px', ...fieldWrap }}>
-          <label style={labelStyle}>超时（秒）</label>
-          <input
-            type="number"
-            min={10}
-            value={form.timeoutSeconds}
-            onChange={(e) => setForm({ ...form, timeoutSeconds: Number(e.target.value) })}
-            style={inputStyle}
-          />
-        </div>
-        <div style={{ flex: '1 1 120px', ...fieldWrap }}>
-          <label style={labelStyle}>尝试次数</label>
-          <input
-            type="number"
-            min={1}
-            max={6}
-            value={form.maxAttempts}
-            onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })}
-            style={inputStyle}
-          />
-        </div>
-        <div style={{ flex: '1 1 150px', ...fieldWrap }}>
-          <label style={labelStyle}>默认尺寸</label>
-          <select value={form.defaultSize} onChange={(e) => setForm({ ...form, defaultSize: e.target.value })} style={inputStyle}>
-            {SIZES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 16, color: '#334155' }}>
-        <input
-          type="checkbox"
-          checked={form.retryOnTimeout}
-          onChange={(e) => setForm({ ...form, retryOnTimeout: e.target.checked })}
-        />
-        读超时后自动重试
-        <span style={hintStyle}>⚠️ 生成类接口按积分计费，关闭可避免重复生成与重复扣费。</span>
-      </label>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button onClick={save} disabled={saving} style={saving ? btnDisabled : btnPrimary}>
-          {saving ? '保存中…' : '保存配置'}
-        </button>
-        {status && <span style={{ fontSize: 12, color: status.startsWith('已保存') ? '#0f766e' : '#b91c1c' }}>{status}</span>}
-      </div>
-    </div>
+  return React.createElement(
+    'div',
+    { style: { display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 520 } },
+    React.createElement(
+      'div',
+      { style: { fontSize: 13, color: '#0f172a', marginBottom: 10, fontWeight: 600 } },
+      '百通凭据',
+    ),
+    field(
+      'AppKey',
+      React.createElement('input', {
+        value: appKey,
+        onChange: (event: any) => setAppKey(event.target.value),
+        placeholder: '百通开放平台 AppKey',
+        style: { width: '100%', padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 },
+      }),
+    ),
+    field(
+      'AppSecret',
+      React.createElement('input', {
+        type: 'password',
+        value: appSecret,
+        onChange: (event: any) => setAppSecret(event.target.value),
+        placeholder: masked ? `已保存 ${masked}，留空则不修改` : '百通开放平台 AppSecret',
+        style: { width: '100%', padding: '7px 10px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 },
+      }),
+      '只保存在本机，不会上传到任何第三方。',
+    ),
+    React.createElement(
+      'div',
+      { style: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 } },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          onClick: save,
+          disabled: saving,
+          style: {
+            padding: '7px 16px', borderRadius: 8, border: 'none',
+            background: saving ? '#94a3b8' : '#0ea5e9', color: '#fff',
+            fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer',
+          },
+        },
+        saving ? '保存中…' : '保存',
+      ),
+      status
+        ? React.createElement('span', { style: { fontSize: 12, color: status.startsWith('已保存') ? '#0f766e' : '#b91c1c' } }, status)
+        : null,
+    ),
+    React.createElement(
+      'div',
+      { style: { fontSize: 11, color: '#94a3b8', marginTop: 10, lineHeight: 1.7 } },
+      '接口地址、渠道、技能编码已内置，无需填写。',
+    ),
   )
 }
 
-// ---------------------------------------------------------------- 注册
-
-// 工作台以全屏浮层形式打开：不依赖任何未验证的右侧栏服务
 const overlayListeners = new Set<(open: boolean) => void>()
 let overlayOpen = false
 function setOverlay(open: boolean) {

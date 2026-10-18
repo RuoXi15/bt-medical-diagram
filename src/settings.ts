@@ -26,12 +26,17 @@ export interface MedicalDiagramSettings {
   defaultSize: string
 }
 
+/** 已写死的接口与渠道：用户不需要知道，也不允许在界面里改。 */
+export const BAKED_BASE_URL = 'https://s.1100111.cn/baitong_ai'
+export const BAKED_CHANNEL = 'workbuddy'
+export const BAKED_SKILL_CODE = 'BT_08DA7C1A'
+
 export const DEFAULT_SETTINGS: MedicalDiagramSettings = {
-  baseUrl: '',
+  baseUrl: BAKED_BASE_URL,
   appKey: '',
   appSecret: '',
-  channel: 'workbuddy',
-  skillCode: 'BT_08DA7C1A',
+  channel: BAKED_CHANNEL,
+  skillCode: BAKED_SKILL_CODE,
   timeoutSeconds: 300,
   maxAttempts: 3,
   retryOnTimeout: true,
@@ -113,9 +118,9 @@ export class SettingsStore {
     return changed
   }
 
-  /** 生效配置：环境变量覆盖持久化值。 */
+  /** 生效配置：接口/渠道/技能固定为内置值，环境变量可覆盖（仅用于自测）。 */
   effective(): MedicalDiagramSettings {
-    const resolved = { ...this.persisted }
+    const resolved = { ...this.persisted, baseUrl: BAKED_BASE_URL, channel: BAKED_CHANNEL, skillCode: BAKED_SKILL_CODE }
     for (const key of WRITABLE_KEYS) {
       const raw = envFirst(ENV_KEYS[key])
       if (!raw) continue
@@ -136,7 +141,7 @@ export class SettingsStore {
       appSecret: '',
       appSecretMasked: secret ? `****${secret.slice(-4)}` : '',
       hasAppSecret: Boolean(secret),
-      hasCredentials: Boolean(settings.baseUrl && settings.appKey && secret),
+      hasCredentials: Boolean(settings.appKey && secret),
     }
   }
 }
