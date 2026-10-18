@@ -535,31 +535,55 @@ function OverlayHost({ ctx }: { ctx: any }) {
   )
 }
 
-function FooterEntry({ ctx }: { ctx: any }) {
-  return React.createElement(
-    'button',
-    {
-      type: 'button',
-      title: '医学图示',
-      onClick: () => {
-        console.info('[bt-medical-diagram] footer click -> open overlay')
-        setOverlay(true)
-      },
-      style: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '6px 10px',
-        borderRadius: 8,
-        border: '1px solid #cbd5e1',
-        background: '#f8fafc',
-        color: '#0f172a',
-        fontSize: 12,
-        cursor: 'pointer',
-      },
-    },
-    '医学图示',
-  )
+// 入口按钮：插到左侧栏「插件」那一行正下方（复用它的样式类；React 重渲染后自动补回）
+function mountNavEntry() {
+  if (typeof document === 'undefined') return () => {}
+  const ID = 'bt-medical-diagram-nav-entry'
+  const attempt = () => {
+    if (document.getElementById(ID)) return
+    const refs = Array.from(document.querySelectorAll('button[aria-label]')) as HTMLElement[]
+    const ref = refs.find((el) => el.getAttribute('aria-label') === '插件')
+    if (!ref || !ref.parentElement) return
+    const button = document.createElement('button')
+    button.id = ID
+    button.type = 'button'
+    button.setAttribute('aria-label', '医学图示')
+    if (ref.className) button.className = ref.className
+    button.style.display = 'flex'
+    button.style.alignItems = 'center'
+    button.style.gap = '10px'
+    button.style.width = '100%'
+    button.style.background = 'transparent'
+    button.style.border = 'none'
+    button.style.padding = '8px 10px'
+    button.style.borderRadius = '10px'
+    button.style.cursor = 'pointer'
+    button.style.color = 'inherit'
+    button.style.fontSize = 'inherit'
+    const glyph = document.createElement('span')
+    glyph.textContent = '🩺'
+    glyph.style.fontSize = '16px'
+    glyph.style.lineHeight = '1'
+    const text = document.createElement('span')
+    text.textContent = '医学图示'
+    text.style.whiteSpace = 'nowrap'
+    button.append(glyph, text)
+    button.addEventListener('click', () => {
+      console.info('[bt-medical-diagram] nav entry click -> open overlay')
+      setOverlay(true)
+    })
+    ref.insertAdjacentElement('afterend', button)
+  }
+  attempt()
+  const observer = new MutationObserver(() => attempt())
+  observer.observe(document.body, { childList: true, subtree: true })
+  const timer = window.setInterval(attempt, 1500)
+  return () => {
+    observer.disconnect()
+    window.clearInterval(timer)
+    const node = document.getElementById(ID)
+    if (node) node.remove()
+  }
 }
 
 export function apply(ctx: any) {
@@ -570,22 +594,17 @@ export function apply(ctx: any) {
 
   log('apply() start', { hasSlots: !!ctx.slots, hasGet: typeof ctx.get === 'function' })
 
-  // A) 侧栏底部按钮（和「插件广场」「百通插件广场」并排）—— 最显眼的入口
+  // A) 入口按钮：插到左侧栏「插件」行下方
   ctx.effect(() => {
     try {
-      const dispose = ctx.slots.inject('sidebar.footer.action', () =>
-        ctx.slots.register(
-          { name: 'sidebar.footer.action', id: 'bt-medical-diagram', key: 'bt-medical-diagram', order: 9, label: () => '医学图示' },
-          wrap(FooterEntry),
-        ),
-      )
-      log('registered sidebar.footer.action', typeof dispose)
+      const dispose = mountNavEntry()
+      log('nav entry mounted')
       return dispose
     } catch (error) {
-      fail('sidebar.footer.action failed', error)
+      fail('nav entry failed', error)
       return () => {}
     }
-  }, 'bt-medical-diagram: footer action')
+  }, 'bt-medical-diagram: sidebar nav entry')
 
   // A2) 浮层宿主（点击侧栏按钮后显示工作台）
   ctx.effect(() => {
