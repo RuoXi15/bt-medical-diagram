@@ -23,9 +23,16 @@
 
 ## 安装
 
-完整步骤见 **[INSTALL.md](INSTALL.md)**（含前置条件、三种分发方式、profile 选择、凭据配置、验证清单与故障排查）。
+完整步骤见 **[INSTALL.md](INSTALL.md)**（含前置条件、四种分发方式、profile 选择、凭据配置、验证清单与故障排查）。
 
-最快路径：
+最快路径（从 npm 装，不依赖 git）：
+
+```bash
+dsh plugin --profile web add bt-medical-diagram
+dsh web
+```
+
+从本地目录或源码装：
 
 ```bash
 dsh plugin --profile web add link:/path/to/bt-medical-diagram

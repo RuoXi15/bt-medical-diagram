@@ -33,6 +33,15 @@
     "image-generation"
   ],
   "license": "MIT",
+"license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RuoXi15/bt-medical-diagram.git"
+  },
+  "homepage": "https://github.com/RuoXi15/bt-medical-diagram#readme",
+  "bugs": {
+    "url": "https://github.com/RuoXi15/bt-medical-diagram/issues"
+  },
   "engines": {
     "node": ">=22.19.0",
     "dsh": ">=0.2.0"

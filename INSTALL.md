@@ -9,6 +9,7 @@
 | Node.js | `^22.19.0` 或 `>=24.0.0` | `node -v` |
 | pnpm | 任意近期版本 | `pnpm -v` |
 | DSH | 任意近期版本 | `dsh -V` |
+| git | 仅「方式四：git 源」需要，且 `git` 必须在 PATH 里 | `git --version` |
 
 > ⚠️ `dsh plugin` 只是把参数转发给 pnpm，所以**即使 `npx @deepseek-ai/dsh` 能启动，没有 pnpm 也装不了插件**。
 
@@ -22,7 +23,24 @@ npx @deepseek-ai/dsh web
 
 ---
 
-## 方式一：本地目录（开发推荐）
+## 方式一：npm（推荐，不依赖 git）
+
+插件发布在 npm 上，装的是已经构建好的 `lib/`（若该版本尚未发版会 404，见下方说明）：
+
+```bash
+dsh plugin --profile web add bt-medical-diagram
+dsh web
+```
+
+- **不需要本机装 git**，也不会触发任何构建授权（`allowBuilds`）
+- 升级：`dsh plugin --profile web update bt-medical-diagram`
+- 想跟最新提交（npm 还没发版时）走方式四（git 源）
+
+> 若 `dsh plugin add bt-medical-diagram` 报 404，说明该版本还没发到 npm，先用方式三（tarball）或方式四（git 源）。
+
+---
+
+## 方式二：本地目录（开发推荐）
 
 源码 checkout 已包含构建产物 `lib/`，可直接链接安装：
 
@@ -44,7 +62,7 @@ dsh web --dump-config | grep bt-medical-diagram
 
 ---
 
-## 方式二：tarball（分发给他人）
+## 方式三：tarball（分发给他人）
 
 ```bash
 cd bt-medical-diagram
@@ -63,7 +81,9 @@ tarball 内是**已构建好的代码**，安装时不需要授权任何构建�
 
 ---
 
-## 方式三：git 源
+## 方式四：git 源
+
+> 前提：本机装了 git，且 `git` 在 PATH 里（`git --version` 能跑）。pnpm 解析 GitHub 源时会调 `git ls-remote`，找不到 git 就直接失败。
 
 ```bash
 # 在插件目录
@@ -191,6 +211,7 @@ dsh plugin --profile web remove bt-medical-diagram   # 卸载
 | 症状 | 原因 | 修复 |
 |---|---|---|
 | `pnpm is not recognized` | 没装 pnpm | 装 pnpm 后重试 |
+| `'git' 不是内部或外部命令` / `git: command not found` | 装 GitHub 源插件时找不到 git | 装 git，把 `C:\Program Files\Git\cmd` 加进 PATH；**之后必须重启 DSH**，旧进程继承的是旧环境 |
 | 装完插件没生效 | 没重启 | 重启 `dsh web`（增删 bundle 跨启动边界） |
 | web 里有、headless 里没有 | profile 相互独立 | 分别安装 |
 | git 源安装卡在 allowBuilds | pnpm 10+ 拦截构建 | 审核源码后按提示加 `allowBuilds` |
