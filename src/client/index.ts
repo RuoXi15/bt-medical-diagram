@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
-export const inject = ['slots', 'ui']
+export const inject = ['slots', 'ui', 'sidebarRightTabs', 'sidebarRight']
 
 const API = '/bt-medical-diagram'
 const SIZES = ['1024x1024', '1024x1536', '1536x1024', '1792x1024', '1024x1792']
@@ -482,7 +482,51 @@ function SettingsComponent({ ctx }: { ctx: any }) {
 
 export function apply(ctx: any) {
   const wrap = (Component: any) => () => React.createElement(Component, { ctx })
+  const TAB_KIND = 'bt-medical-diagram'
 
-  ctx.slots.register({ name: 'workspace', component: wrap(WorkspaceComponent) })
-  ctx.slots.register({ name: 'settings', component: wrap(SettingsComponent) })
+  // 1) 插件配置卡片：设置 → 插件 → bt-medical-diagram → 配置
+  ctx.effect(() => {
+    try {
+      return ctx.slots.inject('plugins.bundle.config', () =>
+        ctx.slots.register(
+          { name: 'plugins.bundle.config', key: 'bt-medical-diagram', inject: () => ({}) },
+          wrap(SettingsComponent),
+        ),
+      )
+    } catch (error) {
+      console.error('[bt-medical-diagram] config card registration failed', error)
+      return () => {}
+    }
+  }, 'bt-medical-diagram: config card')
+
+  // 2) 右侧栏标签页：工作台
+  ctx.effect(() => {
+    const disposers: Array<() => void> = []
+    try {
+      const disposeType = ctx.sidebarRightTabs?.register?.({
+        id: TAB_KIND,
+        kind: TAB_KIND,
+        title: () => '医学图示',
+      })
+      if (typeof disposeType === 'function') disposers.push(disposeType)
+
+      disposers.push(
+        ctx.slots.inject('sidebar.right.pane.tab', () =>
+          ctx.slots.register({ name: 'sidebar.right.pane.tab', key: TAB_KIND }, wrap(WorkspaceComponent)),
+        ),
+      )
+      disposers.push(
+        ctx.slots.inject('sidebar.right.pane.tab.title', () =>
+          ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TAB_KIND }, () => '医学图示'),
+        ),
+      )
+    } catch (error) {
+      console.error('[bt-medical-diagram] right pane tab registration failed', error)
+    }
+    return () => {
+      for (const dispose of disposers.reverse()) {
+        try { dispose() } catch {}
+      }
+    }
+  }, 'bt-medical-diagram: right pane tab')
 }
