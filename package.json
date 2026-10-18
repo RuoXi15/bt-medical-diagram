@@ -1,0 +1,56 @@
+{
+  "name": "bt-medical-diagram",
+  "version": "0.1.0",
+  "description": "医学专业图示生成：把医学图示需求优化为专业 Prompt，并调用百通生图服务（DSH 插件版）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "INSTALL.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "bundle": "node scripts/build.mjs",
+    "gates": "node scripts/gates/run.mjs",
+    "pack:check": "npm pack --dry-run",
+    "verify": "node scripts/gates/run.mjs && npm pack --dry-run"
+  },
+  "keywords": [
+    "dsh",
+    "cordis",
+    "baitong",
+    "medical",
+    "diagram",
+    "image-generation"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

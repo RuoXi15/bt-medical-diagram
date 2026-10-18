@@ -1,0 +1,35 @@
+name: release
+
+# 打 tag 即发布：构建 -> 门禁 -> 打 tarball -> 附到 GitHub Release
+# DSH 插件市场的安装顺序是 npm 包 > Release 里的 tarball > 整仓源码，
+# 所以这里挂一个预构建 tarball，用户装起来是秒级、且不用跑构建脚本。
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run bundle
+      - run: pnpm run gates
+      - name: 打 tarball
+        run: npm pack
+      - name: 创建 Release 并上传 tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${GITHUB_REF_NAME}" ./*.tgz --title "${GITHUB_REF_NAME}" --generate-notes

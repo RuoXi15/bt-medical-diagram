@@ -1,0 +1,9 @@
+# 统一换行，避免 Windows 检出把 CRLF 提交上去
+* text=auto eol=lf
+*.tgz binary
+*.png binary
+*.jpg binary
+# 构建产物：仓库里要有，但 diff 里不必看
+lib/*.js linguist-generated
+lib/*.js.map linguist-generated
+pnpm-lock.yaml linguist-generated
