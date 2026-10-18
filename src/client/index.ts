@@ -1,3 +1,4 @@
+import React from 'react'
 /**
  * bt-medical-diagram — client half
  *
@@ -480,6 +481,60 @@ function SettingsComponent({ ctx }: { ctx: any }) {
 
 // ---------------------------------------------------------------- 注册
 
+// 工作台以全屏浮层形式打开：不依赖任何未验证的右侧栏服务
+const overlayListeners = new Set<(open: boolean) => void>()
+let overlayOpen = false
+function setOverlay(open: boolean) {
+  overlayOpen = open
+  for (const listener of overlayListeners) listener(open)
+}
+
+function OverlayHost({ ctx }: { ctx: any }) {
+  const [open, setOpen] = React.useState(overlayOpen)
+  React.useEffect(() => {
+    overlayListeners.add(setOpen)
+    return () => { overlayListeners.delete(setOpen) }
+  }, [])
+  if (!open) return null
+  return React.createElement(
+    'div',
+    {
+      style: {
+        position: 'fixed', inset: 0, zIndex: 2147483000,
+        background: 'rgba(15, 23, 42, 0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 24,
+      },
+      onClick: (event: any) => { if (event.target === event.currentTarget) setOverlay(false) },
+    },
+    React.createElement(
+      'div',
+      {
+        style: {
+          width: 'min(880px, 100%)', maxHeight: '86vh', overflow: 'auto',
+          background: '#ffffff', borderRadius: 14, padding: 20,
+          boxShadow: '0 24px 64px rgba(15, 23, 42, 0.28)',
+        },
+      },
+      React.createElement(
+        'div',
+        { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 } },
+        React.createElement('strong', { style: { fontSize: 15 } }, '医学专业图示生成'),
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => setOverlay(false),
+            style: { border: '1px solid #cbd5e1', background: '#fff', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12 },
+          },
+          '关闭',
+        ),
+      ),
+      React.createElement(WorkspaceComponent, { ctx }),
+    ),
+  )
+}
+
 function FooterEntry({ ctx }: { ctx: any }) {
   return React.createElement(
     'button',
@@ -487,14 +542,8 @@ function FooterEntry({ ctx }: { ctx: any }) {
       type: 'button',
       title: '医学图示',
       onClick: () => {
-        try {
-          const right = typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined
-          const tabs = typeof ctx.get === 'function' ? ctx.get('sidebarRightTabs') : undefined
-          console.info('[bt-medical-diagram] footer click', { right: !!right, tabs: !!tabs })
-          right?.openTab?.('bt-medical-diagram')
-        } catch (error) {
-          console.warn('[bt-medical-diagram] openTab failed', error)
-        }
+        console.info('[bt-medical-diagram] footer click -> open overlay')
+        setOverlay(true)
       },
       style: {
         display: 'flex',
@@ -537,6 +586,23 @@ export function apply(ctx: any) {
       return () => {}
     }
   }, 'bt-medical-diagram: footer action')
+
+  // A2) 浮层宿主（点击侧栏按钮后显示工作台）
+  ctx.effect(() => {
+    try {
+      const dispose = ctx.slots.inject('shell.overlay', () =>
+        ctx.slots.register(
+          { name: 'shell.overlay', id: 'bt-medical-diagram-overlay', label: () => '医学图示' },
+          wrap(OverlayHost),
+        ),
+      )
+      log('registered shell.overlay', typeof dispose)
+      return dispose
+    } catch (error) {
+      fail('shell.overlay failed', error)
+      return () => {}
+    }
+  }, 'bt-medical-diagram: overlay host')
 
   // B) 插件配置卡片
   ctx.effect(() => {
