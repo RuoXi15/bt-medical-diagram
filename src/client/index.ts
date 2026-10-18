@@ -535,14 +535,34 @@ function OverlayHost({ ctx }: { ctx: any }) {
   )
 }
 
+// 兜底：万一侧栏「插件」行找不到，就退回侧栏底部按钮
+function FallbackEntry({ ctx }: { ctx: any }) {
+  return React.createElement(
+    'button',
+    {
+      type: 'button',
+      onClick: () => setOverlay(true),
+      style: {
+        display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+        padding: '6px 10px', borderRadius: 8, border: '1px solid #cbd5e1',
+        background: '#f8fafc', color: '#0f172a', fontSize: 12, cursor: 'pointer',
+      },
+    },
+    '🩺 医学图示',
+  )
+}
+
 // 入口按钮：插到左侧栏「插件」那一行正下方（复用它的样式类；React 重渲染后自动补回）
 function mountNavEntry() {
   if (typeof document === 'undefined') return () => {}
   const ID = 'bt-medical-diagram-nav-entry'
   const attempt = () => {
     if (document.getElementById(ID)) return
-    const refs = Array.from(document.querySelectorAll('button[aria-label]')) as HTMLElement[]
-    const ref = refs.find((el) => el.getAttribute('aria-label') === '插件')
+    const buttons = Array.from(document.querySelectorAll('button')) as HTMLElement[]
+    const ref =
+      buttons.find((el) => el.getAttribute('aria-label') === '插件') ||
+      buttons.find((el) => (el.getAttribute('aria-label') || '').indexOf('插件') >= 0) ||
+      buttons.find((el) => (el.textContent || '').trim() === '插件')
     if (!ref || !ref.parentElement) return
     const button = document.createElement('button')
     button.id = ID
@@ -596,13 +616,32 @@ export function apply(ctx: any) {
 
   // A) 入口按钮：插到左侧栏「插件」行下方
   ctx.effect(() => {
+    let fallback: any = null
+    let timer: any = null
+    let disposeNav: any = () => {}
     try {
-      const dispose = mountNavEntry()
+      disposeNav = mountNavEntry()
       log('nav entry mounted')
-      return dispose
+      timer = window.setTimeout(() => {
+        if (document.getElementById('bt-medical-diagram-nav-entry')) return
+        console.warn('[bt-medical-diagram] 侧栏「插件」行没找到，退回侧栏底部按钮')
+        try {
+          fallback = ctx.slots.inject('sidebar.footer.action', () =>
+            ctx.slots.register(
+              { name: 'sidebar.footer.action', id: 'bt-medical-diagram', key: 'bt-medical-diagram', order: 9, label: () => '医学图示' },
+              wrap(FallbackEntry),
+            ))
+        } catch (error) {
+          fail('fallback footer action failed', error)
+        }
+      }, 3000)
     } catch (error) {
       fail('nav entry failed', error)
-      return () => {}
+    }
+    return () => {
+      if (timer) window.clearTimeout(timer)
+      if (typeof fallback === 'function') { try { fallback() } catch {} }
+      try { disposeNav() } catch {}
     }
   }, 'bt-medical-diagram: sidebar nav entry')
 
