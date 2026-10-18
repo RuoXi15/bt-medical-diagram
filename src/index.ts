@@ -231,54 +231,80 @@ export function apply(ctx: any) {
     })
 
 
-    // ---- HTTP ----
-    const disposeRoutes = ctx.webServer.register((router: any) => {
-      // 冒烟路由
-      router.get(`${ROUTE_PREFIX}/health`, async () => ({
-        status: 'ok',
-        plugin: ctx.name,
-        uptime: process.uptime(),
-        configured: settings.snapshot().hasCredentials,
-      }))
-
-      router.get(`${ROUTE_PREFIX}/config`, async () => settings.snapshot())
-
-      router.post(`${ROUTE_PREFIX}/config`, async (request: any) => {
-        const body = (await request.json?.()) ?? {}
-        const changed = settings.patch(body as Record<string, unknown>)
-        ctx.logger.info('[bt-medical-diagram] config updated:', changed.join(', ') || '无变更')
-        return { ok: true, changed, settings: settings.snapshot() }
+    // ---- HTTP（真实 API：ctx.webServer.register({ kind, path, handler })）----
+    const readJson = (req: any) =>
+      new Promise<Record<string, unknown>>((resolve) => {
+        let data = ''
+        req.on('data', (chunk: any) => { data += chunk })
+        req.on('end', () => {
+          try { resolve(data ? JSON.parse(data) : {}) } catch { resolve({}) }
+        })
+        req.on('error', () => resolve({}))
       })
 
-      // 仅优化 Prompt（不生图、不计费）
-      router.post(`${ROUTE_PREFIX}/prompt`, async (request: any) => {
-        const body = (await request.json?.()) ?? {}
-        try {
-          const built = buildMedicalPrompt(String(body.request ?? ''))
-          return { ok: true, ...built }
-        } catch (error) {
-          return { ok: false, message: error instanceof Error ? error.message : String(error) }
-        }
-      })
+    const sendJson = (res: any, status: number, payload: unknown) => {
+      const body = JSON.stringify(payload)
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+      res.end(body)
+    }
 
-      // 真正生图（长耗时，最长可达 timeoutSeconds）
-      router.post(`${ROUTE_PREFIX}/generate`, async (request: any) => {
-        const body = (await request.json?.()) ?? {}
-        try {
-          const outcome = await generate(String(body.request ?? ''), {
-            size: body.size,
-            n: body.n,
-            timeoutSeconds: body.timeoutSeconds ? Number(body.timeoutSeconds) : undefined,
-            maxAttempts: body.maxAttempts ? Number(body.maxAttempts) : undefined,
-            retryOnTimeout: typeof body.retryOnTimeout === 'boolean' ? body.retryOnTimeout : undefined,
-          })
-          ctx.logger.info('[bt-medical-diagram] generate:', outcome.ok ? 'ok' : outcome.message)
-          return outcome
-        } catch (error) {
-          return { ok: false, message: error instanceof Error ? error.message : String(error) }
-        }
-      })
-    })
+    // 两种前缀都注册：宿主把插件路由挂在 /api 下还是根路径下都能命中
+    const prefixes = [ROUTE_PREFIX, '/api' + ROUTE_PREFIX]
+
+    const disposeRoutes = prefixes.flatMap((prefix) => [
+      ctx.webServer.register({
+        kind: 'exact',
+        path: `${prefix}/health`,
+        handler: async (_req: any, res: any) =>
+          sendJson(res, 200, { status: 'ok', plugin: ctx.name, uptime: process.uptime(), configured: settings.snapshot().hasCredentials }),
+      }),
+      ctx.webServer.register({
+        kind: 'exact',
+        path: `${prefix}/config`,
+        handler: async (req: any, res: any) => {
+          if (req.method === 'POST') {
+            const body = await readJson(req)
+            const changed = settings.patch(body)
+            ctx.logger.info('[bt-medical-diagram] config updated:', changed.join(', ') || 'no change')
+            sendJson(res, 200, { ok: true, changed, settings: settings.snapshot() })
+            return
+          }
+          sendJson(res, 200, settings.snapshot())
+        },
+      }),
+      ctx.webServer.register({
+        kind: 'exact',
+        path: `${prefix}/prompt`,
+        handler: async (req: any, res: any) => {
+          const body = await readJson(req)
+          try {
+            const built = buildMedicalPrompt(String(body.request ?? ''))
+            sendJson(res, 200, { ok: true, ...built })
+          } catch (error) {
+            sendJson(res, 200, { ok: false, message: error instanceof Error ? error.message : String(error) })
+          }
+        },
+      }),
+      ctx.webServer.register({
+        kind: 'exact',
+        path: `${prefix}/generate`,
+        handler: async (req: any, res: any) => {
+          const body = await readJson(req)
+          try {
+            const outcome = await generate(String(body.request ?? ''), {
+              size: body.size as string | undefined,
+              timeoutSeconds: body.timeoutSeconds ? Number(body.timeoutSeconds) : undefined,
+              maxAttempts: body.maxAttempts ? Number(body.maxAttempts) : undefined,
+              retryOnTimeout: typeof body.retryOnTimeout === 'boolean' ? body.retryOnTimeout : undefined,
+            })
+            ctx.logger.info('[bt-medical-diagram] generate:', outcome.ok ? 'ok' : outcome.message)
+            sendJson(res, 200, outcome)
+          } catch (error) {
+            sendJson(res, 200, { ok: false, message: error instanceof Error ? error.message : String(error) })
+          }
+        },
+      }),
+    ])
 
     return () => {
       disposeRoutes?.()
