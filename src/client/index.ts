@@ -480,19 +480,65 @@ function SettingsComponent({ ctx }: { ctx: any }) {
 
 // ---------------------------------------------------------------- 注册
 
+function FooterEntry({ ctx }: { ctx: any }) {
+  return React.createElement(
+    'button',
+    {
+      type: 'button',
+      title: '医学图示',
+      onClick: () => {
+        try {
+          const right = typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined
+          const tabs = typeof ctx.get === 'function' ? ctx.get('sidebarRightTabs') : undefined
+          console.info('[bt-medical-diagram] footer click', { right: !!right, tabs: !!tabs })
+          right?.openTab?.('bt-medical-diagram')
+        } catch (error) {
+          console.warn('[bt-medical-diagram] openTab failed', error)
+        }
+      },
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px',
+        borderRadius: 8,
+        border: '1px solid #cbd5e1',
+        background: '#f8fafc',
+        color: '#0f172a',
+        fontSize: 12,
+        cursor: 'pointer',
+      },
+    },
+    '医学图示',
+  )
+}
+
 export function apply(ctx: any) {
   const log = (...args: any[]) => console.info('[bt-medical-diagram]', ...args)
   const fail = (...args: any[]) => console.error('[bt-medical-diagram]', ...args)
   const wrap = (Component: any) => () => React.createElement(Component, { ctx })
   const TAB_KIND = 'bt-medical-diagram'
 
-  log('apply() start', {
-    hasSlots: !!ctx.slots,
-    slotKeys: ctx.slots ? Object.keys(ctx.slots) : null,
-    hasGet: typeof ctx.get === 'function',
-  })
+  log('apply() start', { hasSlots: !!ctx.slots, hasGet: typeof ctx.get === 'function' })
 
-  // A) 插件自己的配置卡片（设置 → 插件 → bt-medical-diagram → 配置）
+  // A) 侧栏底部按钮（和「插件广场」「百通插件广场」并排）—— 最显眼的入口
+  ctx.effect(() => {
+    try {
+      const dispose = ctx.slots.inject('sidebar.footer.action', () =>
+        ctx.slots.register(
+          { name: 'sidebar.footer.action', id: 'bt-medical-diagram', key: 'bt-medical-diagram', order: 9, label: () => '医学图示' },
+          wrap(FooterEntry),
+        ),
+      )
+      log('registered sidebar.footer.action', typeof dispose)
+      return dispose
+    } catch (error) {
+      fail('sidebar.footer.action failed', error)
+      return () => {}
+    }
+  }, 'bt-medical-diagram: footer action')
+
+  // B) 插件配置卡片
   ctx.effect(() => {
     try {
       const dispose = ctx.slots.inject('plugins.bundle.config', () =>
@@ -509,18 +555,12 @@ export function apply(ctx: any) {
     }
   }, 'bt-medical-diagram: config card')
 
-  // B) 设置页里的独立分区（更显眼，作为兜底入口）
+  // C) 设置页分区
   ctx.effect(() => {
     try {
       const dispose = ctx.slots.inject('settings.section', () =>
         ctx.slots.register(
-          {
-            name: 'settings.section',
-            id: 'bt-medical-diagram',
-            order: 12,
-            label: () => '医学图示',
-            inject: () => ({}),
-          },
+          { name: 'settings.section', id: 'bt-medical-diagram', order: 12, label: () => '医学图示', inject: () => ({}) },
           wrap(WorkspaceComponent),
         ),
       )
@@ -532,16 +572,14 @@ export function apply(ctx: any) {
     }
   }, 'bt-medical-diagram: settings section')
 
-  // C) 右侧栏标签页
+  // D) 右侧栏标签页
   ctx.effect(() => {
     const disposers: Array<() => void> = []
     try {
       const tabs = typeof ctx.get === 'function' ? ctx.get('sidebarRightTabs') : undefined
-      log('sidebarRightTabs =', !!tabs, tabs ? Object.keys(tabs) : null)
+      log('sidebarRightTabs =', !!tabs)
       const disposeType = tabs?.register?.({ id: TAB_KIND, kind: TAB_KIND, title: () => '医学图示' })
       if (typeof disposeType === 'function') disposers.push(disposeType)
-      log('registered tab type', typeof disposeType)
-
       disposers.push(
         ctx.slots.inject('sidebar.right.pane.tab', () =>
           ctx.slots.register({ name: 'sidebar.right.pane.tab', key: TAB_KIND }, wrap(WorkspaceComponent)),
@@ -557,9 +595,7 @@ export function apply(ctx: any) {
       fail('right pane tab failed', error)
     }
     return () => {
-      for (const dispose of disposers.reverse()) {
-        try { dispose() } catch {}
-      }
+      for (const dispose of disposers.reverse()) { try { dispose() } catch {} }
     }
   }, 'bt-medical-diagram: right pane tab')
 }
