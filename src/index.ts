@@ -10,8 +10,6 @@
 import { BaitongImageClient, extractImage } from './baitong-client.js'
 import { ALLOWED_SIZES, buildMedicalPrompt, normalizeSize } from './prompt-builder.js'
 import { SettingsStore } from './settings.js'
-import { defineTool } from '@deepseek-ai/dsh-tools'
-import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
 
 /** 使用 webServer 服务（HTTP 路由），必须声明注入。 */
 export const inject = ['webServer', 'commands', 'tools']
@@ -148,7 +146,7 @@ export function apply(ctx: any) {
     }
 
     ctx.commands.register({
-      definitionId: CommandDefinitionId('bt-medical-diagram'),
+      definitionId: 'bt-medical-diagram',
       name: 'medical-diagram',
       description: '生成医学专业图示（药物/疾病机制、诊疗流程、解剖生理、医学对比、患者教育）',
       input: { hint: '<需求> [--size 1024x1024] [--timeout 300] [--max-attempts 3] [--no-retry-on-timeout]' },
@@ -171,7 +169,7 @@ export function apply(ctx: any) {
     })
 
     ctx.commands.register({
-      definitionId: CommandDefinitionId('bt-medical-diagram-prompt'),
+      definitionId: 'bt-medical-diagram-prompt',
       name: 'medical-diagram-prompt',
       description: '仅生成医学图示 Prompt，不调用生图接口、不产生费用',
       input: { hint: '<需求>' },
@@ -187,21 +185,27 @@ export function apply(ctx: any) {
     })
 
     // ---- 工具（DSH 真 API：ctx.tools.register(defineTool(...))）----
-    ctx.tools.register(defineTool({
+    ctx.tools.register({
       name: 'medical_diagram',
       description:
         '生成医学专业图示：把医学图示需求优化为专业 Prompt 并调用百通生图服务。适用于药物作用机制、疾病机制、诊疗流程、解剖生理、医学对比与患者教育图。不替代医学事实核验。',
       parameters: {
-        request: { type: 'string', required: true, description: '医学图示需求描述，如「生成一张司美格鲁肽降糖机制图」' },
-        size: { type: 'string', description: `可选尺寸：${ALLOWED_SIZES.join(' / ')}` },
+        type: 'object',
+        additionalProperties: false,
+        required: ['request'],
+        properties: {
+          request: { type: 'string', description: '医学图示需求描述，如「生成一张司美格鲁肽降糖机制图」' },
+          size: { type: 'string', description: '可选尺寸：' + ALLOWED_SIZES.join(' / ') },
+        },
       },
       output: {
         schema: {
           type: 'object',
           additionalProperties: false,
+          required: ['ok', 'message'],
           properties: {
-            ok: { type: 'boolean', required: true },
-            message: { type: 'string', required: true },
+            ok: { type: 'boolean' },
+            message: { type: 'string' },
             imageUrl: { type: 'string' },
             illustrationType: { type: 'string' },
             optimizedPrompt: { type: 'string' },
@@ -211,19 +215,21 @@ export function apply(ctx: any) {
           {
             type: 'text',
             text: value.ok
-              ? `医学图示已生成：${value.imageUrl ?? '（平台返回 Base64）'}`
-              : `医学图示生成失败：${value.message}`,
+              ? '医学图示已生成：' + (value.imageUrl ?? '（平台返回 Base64）')
+              : '医学图示生成失败：' + value.message,
           },
         ],
       },
       execute: async (args: { request: string; size?: string }) => {
         const outcome = await generate(args.request, { size: args.size })
-        const payload = outcome.ok
-          ? { ok: true, message: outcome.message, imageUrl: outcome.imageUrl, illustrationType: outcome.illustrationType, optimizedPrompt: outcome.optimizedPrompt }
-          : { ok: false, message: outcome.message, illustrationType: outcome.illustrationType, optimizedPrompt: outcome.optimizedPrompt }
-        return JSON.parse(JSON.stringify(payload))
+        const payload: Record<string, unknown> = { ok: outcome.ok, message: outcome.message }
+        if (outcome.imageUrl) payload.imageUrl = outcome.imageUrl
+        if (outcome.illustrationType) payload.illustrationType = outcome.illustrationType
+        if (outcome.optimizedPrompt) payload.optimizedPrompt = outcome.optimizedPrompt
+        return payload
       },
-    }))
+    })
+
 
     // ---- HTTP ----
     const disposeRoutes = ctx.webServer.register((router: any) => {
