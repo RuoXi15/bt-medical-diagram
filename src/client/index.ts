@@ -10,7 +10,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
-export const inject = ['slots', 'ui', 'sidebarRightTabs', 'sidebarRight']
+export const inject = ['slots']
 
 const API = '/bt-medical-diagram'
 const SIZES = ['1024x1024', '1024x1536', '1536x1024', '1792x1024', '1024x1792']
@@ -503,7 +503,8 @@ export function apply(ctx: any) {
   ctx.effect(() => {
     const disposers: Array<() => void> = []
     try {
-      const disposeType = ctx.sidebarRightTabs?.register?.({
+      const tabs = typeof ctx.get === 'function' ? ctx.get('sidebarRightTabs') : undefined
+      const disposeType = tabs?.register?.({
         id: TAB_KIND,
         kind: TAB_KIND,
         title: () => '医学图示',
